@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import axios from 'axios';
 
 export default function Home() {
@@ -15,68 +13,31 @@ export default function Home() {
   const [showRaw, setShowRaw] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setPreview(URL.createObjectURL(selectedFile));
-      setResults(null);
-      setError(null);
-      setShowRaw(false);
-    }
-  };
+    const f = e.target.files?.[0];
+    if (!f) return;
 
-  // ✅ FIXED: uses listDir instead of readDir
-  const extractFrames = async (file: File) => {
-    const ffmpeg = new FFmpeg();
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-
-    await ffmpeg.writeFile('input.mp4', await fetchFile(file));
-    await ffmpeg.exec(['-i', 'input.mp4', '-vf', 'fps=1/10', 'frame-%03d.png']);
-
-    // ✅ CORRECT API
-    const entries = await ffmpeg.listDir('/');
-
-    const frameNames = entries
-      .map((e) => e.name)
-      .filter((name) => name.startsWith('frame-'));
-
-    const frames = await Promise.all(
-      frameNames.map(async (name, i) => {
-        const data = await ffmpeg.readFile(name);
-        return new File([data as Uint8Array], `frame-${i}.png`, {
-          type: 'image/png',
-        });
-      })
-    );
-
-    return frames;
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+    setResults(null);
+    setError(null);
+    setShowRaw(false);
   };
 
   const handleSubmit = async () => {
     if (!file) return;
+
     setLoading(true);
     setError(null);
 
     try {
-      let imagesToSearch = [file];
-
-      if (file.type.startsWith('video/') || file.type === 'image/gif') {
-        imagesToSearch = await extractFrames(file);
-      }
-
       const formData = new FormData();
-      imagesToSearch.forEach((img) => formData.append('images', img));
+      formData.append('images', file);
 
-      const response = await axios.post('/api/search', formData);
-      setResults(response.data);
+      const res = await axios.post('/api/search', formData);
+      setResults(res.data);
     } catch (err) {
       console.error(err);
-      setError('Error processing search. Try again.');
+      setError('Search failed. Try again.');
     } finally {
       setLoading(false);
     }
@@ -86,7 +47,6 @@ export default function Home() {
     if (!results) return [];
     const matches: any[] = [];
 
-    // trace.moe
     results.traceMoe?.forEach((res: any) => {
       res.result?.forEach((m: any) => {
         matches.push({
@@ -95,12 +55,10 @@ export default function Home() {
           thumbnail: m.image,
           link: `https://anilist.co/anime/${m.anilist}`,
           source: m.filename,
-          video: m.video,
         });
       });
     });
 
-    // SauceNAO
     results.saucenao?.forEach((res: any) => {
       res.results?.forEach((m: any) => {
         matches.push({
@@ -113,7 +71,6 @@ export default function Home() {
       });
     });
 
-    // Fluffle
     results.fluffle?.forEach((res: any) => {
       res.items?.forEach((m: any) => {
         matches.push({
@@ -131,13 +88,13 @@ export default function Home() {
     );
   };
 
-  const allMatches = getAllMatches();
+  const matches = getAllMatches();
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
       <h1 className="text-4xl font-bold mb-8 text-center">Goon Finder</h1>
 
-      <div className="max-w-5xl mx-auto bg-gray-800 p-8 rounded-xl">
+      <div className="max-w-4xl mx-auto bg-gray-800 p-8 rounded-xl">
         <input
           type="file"
           accept="image/*,video/*,.gif"
@@ -146,7 +103,11 @@ export default function Home() {
         />
 
         {preview && (
-          <img src={preview} className="mx-auto max-h-96 mb-6 rounded" />
+          <img
+            src={preview}
+            alt="Preview"
+            className="mx-auto max-h-96 mb-6 rounded"
+          />
         )}
 
         <button
@@ -159,22 +120,57 @@ export default function Home() {
 
         {error && <p className="mt-4 text-red-400">{error}</p>}
 
-        <div className="grid mt-8 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {allMatches
-            .filter((m) => parseFloat(m.similarity) >= threshold)
-            .map((m, i) => (
-              <div key={i} className="bg-gray-700 p-4 rounded">
-                <p className="text-sm text-cyan-300">{m.engine}</p>
-                {m.thumbnail && (
-                  <img src={m.thumbnail} className="rounded my-2" />
-                )}
-                <p>Similarity: {m.similarity}%</p>
-                <a href={m.link} target="_blank" className="text-blue-400">
-                  View Source →
-                </a>
-              </div>
-            ))}
-        </div>
+        {matches.length > 0 && (
+          <>
+            <h2 className="text-2xl mt-10 mb-4 text-center">
+              Matches ≥ {threshold}%
+            </h2>
+
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={threshold}
+              onChange={(e) => setThreshold(Number(e.target.value))}
+              className="w-full mb-6"
+            />
+
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {matches
+                .filter((m) => parseFloat(m.similarity) >= threshold)
+                .map((m, i) => (
+                  <div key={i} className="bg-gray-700 p-4 rounded">
+                    <p className="text-cyan-300 text-sm">{m.engine}</p>
+                    {m.thumbnail && (
+                      <img src={m.thumbnail} className="rounded my-2" />
+                    )}
+                    <p>Similarity: {m.similarity}%</p>
+                    <p className="text-sm text-gray-300">{m.source}</p>
+                    <a
+                      href={m.link}
+                      target="_blank"
+                      className="text-blue-400"
+                    >
+                      View →
+                    </a>
+                  </div>
+                ))}
+            </div>
+
+            <button
+              onClick={() => setShowRaw(!showRaw)}
+              className="mt-10 bg-purple-600 px-6 py-3 rounded"
+            >
+              {showRaw ? 'Hide' : 'Show'} Raw JSON
+            </button>
+
+            {showRaw && (
+              <pre className="mt-4 bg-black p-4 rounded text-xs overflow-auto">
+                {JSON.stringify(results, null, 2)}
+              </pre>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
