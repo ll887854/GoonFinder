@@ -33,12 +33,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [threshold, setThreshold] = useState(80);
   const [showRaw, setShowRaw] = useState(false);
-  const [showPanel, setShowPanel] = useState(false);
-  const [panelTab, setPanelTab] = useState<'history' | 'favorites'>('history');
+  const [showHistory, setShowHistory] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
   const [history, setHistory] = useState<SearchHistory[]>([]);
   const [favorites, setFavorites] = useState<Favorite[]>([]);
 
-  // Load from localStorage
   useEffect(() => {
     const savedHistory = localStorage.getItem('goonFinderHistory');
     const savedFavorites = localStorage.getItem('goonFinderFavorites');
@@ -46,7 +45,6 @@ export default function Home() {
     if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
   }, []);
 
-  // Save history
   const saveToHistory = (currentPreview: string, currentResults: any) => {
     const newEntry: SearchHistory = {
       id: Date.now().toString(),
@@ -59,16 +57,14 @@ export default function Home() {
     localStorage.setItem('goonFinderHistory', JSON.stringify(updated));
   };
 
-  // Add/remove favorite
   const toggleFavorite = (match: any) => {
-    const id = Date.now().toString();
     const existing = favorites.find(f => f.match.link === match.link && f.match.engine === match.engine);
     if (existing) {
       const updated = favorites.filter(f => f.id !== existing.id);
       setFavorites(updated);
       localStorage.setItem('goonFinderFavorites', JSON.stringify(updated));
     } else {
-      const newFav: Favorite = { id, match, date: new Date().toLocaleString() };
+      const newFav: Favorite = { id: Date.now().toString(), match, date: new Date().toLocaleString() };
       const updated = [newFav, ...favorites];
       setFavorites(updated);
       localStorage.setItem('goonFinderFavorites', JSON.stringify(updated));
@@ -79,14 +75,13 @@ export default function Home() {
     return favorites.some(f => f.match.link === match.link && f.match.engine === match.engine);
   };
 
-  // Share match
   const shareMatch = (match: Match) => {
-    const text = `Found this on Goon Finder: ${match.source} (${match.similarity}% match) - ${match.link}`;
+    const text = `Found on Goon Finder: ${match.source} (${match.similarity}% match) — ${match.link}`;
     if (navigator.share) {
       navigator.share({ title: 'Goon Finder Match', text, url: match.link });
     } else {
-      navigator.clipboard.writeText(text + ' ' + match.link);
-      alert('Link + description copied to clipboard!');
+      navigator.clipboard.writeText(text);
+      alert('Match link and description copied to clipboard!');
     }
   };
 
@@ -127,7 +122,7 @@ export default function Home() {
   const loadFromHistory = (entry: SearchHistory) => {
     setPreview(entry.preview);
     setResults(entry.results);
-    setShowPanel(false);
+    setShowHistory(false);
   };
 
   const clearHistory = () => {
@@ -206,13 +201,21 @@ export default function Home() {
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6 relative">
       <h1 className="text-5xl font-bold mb-12">Goon Finder</h1>
 
-      {/* Panel Button - Top Right */}
-      <button
-        onClick={() => setShowPanel(!showPanel)}
-        className="fixed top-6 right-6 bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-bold text-lg shadow-lg z-50 transition"
-      >
-        Panel ({history.length + favorites.length})
-      </button>
+      {/* Two Separate Buttons - Top Right */}
+      <div className="fixed top-6 right-6 flex gap-4 z-50">
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-bold text-lg shadow-lg transition"
+        >
+          History ({history.length})
+        </button>
+        <button
+          onClick={() => setShowFavorites(!showFavorites)}
+          className="bg-pink-600 hover:bg-pink-700 px-6 py-3 rounded-lg font-bold text-lg shadow-lg transition"
+        >
+          Favorites ({favorites.length})
+        </button>
+      </div>
 
       <div className="w-full max-w-5xl bg-gray-800 p-10 rounded-2xl shadow-2xl">
         <input
@@ -326,101 +329,90 @@ export default function Home() {
         )}
       </div>
 
-      {/* Panel - History & Favorites */}
-      {showPanel && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowPanel(false)}>
+      {/* History Panel */}
+      {showHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowHistory(false)}>
           <div className="absolute right-0 top-0 h-full w-full max-w-md bg-gray-800 shadow-2xl p-8 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-3xl font-bold">Saved</h2>
-              <button onClick={() => setShowPanel(false)} className="text-4xl hover:text-red-400">×</button>
+              <h2 className="text-3xl font-bold">Search History</h2>
+              <button onClick={() => setShowHistory(false)} className="text-4xl hover:text-red-400">×</button>
             </div>
-
-            <div className="flex gap-4 mb-6">
-              <button
-                onClick={() => setPanelTab('history')}
-                className={`px-6 py-3 rounded-lg font-bold ${panelTab === 'history' ? 'bg-purple-600' : 'bg-gray-700'}`}
-              >
-                History ({history.length})
-              </button>
-              <button
-                onClick={() => setPanelTab('favorites')}
-                className={`px-6 py-3 rounded-lg font-bold ${panelTab === 'favorites' ? 'bg-purple-600' : 'bg-gray-700'}`}
-              >
-                Favorites ({favorites.length})
-              </button>
-            </div>
-
-            {panelTab === 'history' ? (
-              <>
-                <p className="text-gray-300 mb-6">
-                  Your recent searches (auto-saved in browser).
-                </p>
-                {history.length === 0 ? (
-                  <p className="text-center text-gray-400 mt-20">No history yet</p>
-                ) : (
-                  <>
-                    <button onClick={clearHistory} className="mb-6 bg-red-600 hover:bg-red-700 px-6 py-2 rounded font-bold">
-                      Clear History
-                    </button>
-                    <div className="space-y-6">
-                      {history.map(entry => (
-                        <div key={entry.id} className="bg-gray-700 p-4 rounded-lg">
-                          <p className="text-sm text-gray-400 mb-2">{entry.date}</p>
-                          <img src={entry.preview} alt="Past" className="w-full rounded mb-3" />
-                          <button
-                            onClick={() => loadFromHistory(entry)}
-                            className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded font-bold"
-                          >
-                            Re-run Search
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </>
+            <p className="text-gray-300 mb-6">
+              Your recent searches (auto-saved in browser).
+            </p>
+            {history.length === 0 ? (
+              <p className="text-center text-gray-400 mt-20">No history yet</p>
             ) : (
               <>
-                <p className="text-gray-300 mb-6">
-                  Your favorite matches (saved locally).
-                </p>
-                {favorites.length === 0 ? (
-                  <p className="text-center text-gray-400 mt-20">No favorites yet — click ❤️ on a match!</p>
-                ) : (
-                  <>
-                    <button onClick={clearFavorites} className="mb-6 bg-red-600 hover:bg-red-700 px-6 py-2 rounded font-bold">
-                      Clear Favorites
-                    </button>
-                    <div className="grid grid-cols-1 gap-6">
-                      {favorites.map(fav => (
-                        <div key={fav.id} className="bg-gray-700 p-6 rounded-xl">
-                          <p className="text-cyan-400 font-bold mb-2">{fav.match.engine}</p>
-                          {fav.match.thumbnail && (
-                            <img src={fav.match.thumbnail} alt="Fav" className="w-full rounded mb-4" />
-                          )}
-                          <p className="font-bold text-green-400 mb-2">{fav.match.similarity}%</p>
-                          <p className="text-gray-300 mb-4">Source: {fav.match.source}</p>
-                          <div className="flex gap-3">
-                            <a
-                              href={fav.match.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex-1 bg-blue-600 hover:bg-blue-700 py-2 rounded text-center font-bold"
-                            >
-                              View
-                            </a>
-                            <button
-                              onClick={() => toggleFavorite(fav.match)}
-                              className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-bold"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                <button onClick={clearHistory} className="mb-6 bg-red-600 hover:bg-red-700 px-6 py-2 rounded font-bold">
+                  Clear History
+                </button>
+                <div className="space-y-6">
+                  {history.map(entry => (
+                    <div key={entry.id} className="bg-gray-700 p-4 rounded-lg">
+                      <p className="text-sm text-gray-400 mb-2">{entry.date}</p>
+                      <img src={entry.preview} alt="Past" className="w-full rounded mb-3" />
+                      <button
+                        onClick={() => loadFromHistory(entry)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded font-bold"
+                      >
+                        Re-run Search
+                      </button>
                     </div>
-                  </>
-                )}
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Favorites Panel */}
+      {showFavorites && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowFavorites(false)}>
+          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-gray-800 shadow-2xl p-8 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold">Favorites</h2>
+              <button onClick={() => setShowFavorites(false)} className="text-4xl hover:text-red-400">×</button>
+            </div>
+            <p className="text-gray-300 mb-6">
+              Your favorite matches (saved locally).
+            </p>
+            {favorites.length === 0 ? (
+              <p className="text-center text-gray-400 mt-20">No favorites yet — click ❤️ on a match!</p>
+            ) : (
+              <>
+                <button onClick={clearFavorites} className="mb-6 bg-red-600 hover:bg-red-700 px-6 py-2 rounded font-bold">
+                  Clear Favorites
+                </button>
+                <div className="space-y-6">
+                  {favorites.map(fav => (
+                    <div key={fav.id} className="bg-gray-700 p-6 rounded-xl">
+                      <p className="text-cyan-400 font-bold mb-2">{fav.match.engine}</p>
+                      {fav.match.thumbnail && (
+                        <img src={fav.match.thumbnail} alt="Fav" className="w-full rounded mb-4" />
+                      )}
+                      <p className="font-bold text-green-400 mb-2">{fav.match.similarity}%</p>
+                      <p className="text-gray-300 mb-4">Source: {fav.match.source}</p>
+                      <div className="flex gap-3">
+                        <a
+                          href={fav.match.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 py-2 rounded text-center font-bold"
+                        >
+                          View
+                        </a>
+                        <button
+                          onClick={() => toggleFavorite(fav.match)}
+                          className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded font-bold"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </>
             )}
           </div>
