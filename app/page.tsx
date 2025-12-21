@@ -45,7 +45,7 @@ export default function Home() {
     return ffmpeg;
   };
 
-  const extractFrames = async (file: File) => {
+  const extractFrames = async (file: File): Promise<File[]> => {
     const ffmpeg = await getFFmpeg();
 
     await ffmpeg.writeFile('input.mp4', await fetchFile(file));
@@ -57,7 +57,6 @@ export default function Home() {
       'frame-%03d.png',
     ]);
 
-    // ✅ ROOT DIRECTORY, NOT "."
     const entries = await ffmpeg.listDir('/');
 
     const frameNames = entries
@@ -67,7 +66,12 @@ export default function Home() {
     const frames = await Promise.all(
       frameNames.map(async (name, i) => {
         const data = await ffmpeg.readFile(name);
-        return new File([data as Uint8Array], `frame-${i}.png`, {
+
+        // ✅ FIX: normalize to real ArrayBuffer
+        const buffer =
+          data instanceof Uint8Array ? data.buffer.slice(0) : data;
+
+        return new File([buffer], `frame-${i}.png`, {
           type: 'image/png',
         });
       })
@@ -93,7 +97,6 @@ export default function Home() {
       imagesToSearch.forEach((img) => formData.append('images', img));
 
       const response = await axios.post('/api/search', formData);
-
       setResults(response.data);
     } catch (err) {
       console.error(err);
@@ -105,51 +108,44 @@ export default function Home() {
 
   const getAllMatches = () => {
     if (!results) return [];
-
     const matches: any[] = [];
 
-    if (results.traceMoe) {
-      results.traceMoe.forEach((res: any) => {
-        res.result?.forEach((m: any) => {
-          matches.push({
-            engine: 'trace.moe',
-            similarity: (m.similarity * 100).toFixed(2),
-            thumbnail: m.image,
-            link: `https://anilist.co/anime/${m.anilist}`,
-            source: m.filename || 'Anime scene',
-            video: m.video,
-          });
-        });
-      });
-    }
+    results.traceMoe?.forEach((res: any) =>
+      res.result?.forEach((m: any) =>
+        matches.push({
+          engine: 'trace.moe',
+          similarity: (m.similarity * 100).toFixed(2),
+          thumbnail: m.image,
+          link: `https://anilist.co/anime/${m.anilist}`,
+          source: m.filename || 'Anime scene',
+          video: m.video,
+        })
+      )
+    );
 
-    if (results.saucenao) {
-      results.saucenao.forEach((res: any) => {
-        res.results?.forEach((m: any) => {
-          matches.push({
-            engine: 'SauceNAO',
-            similarity: parseFloat(m.header.similarity),
-            thumbnail: m.header.thumbnail,
-            link: m.data.ext_urls?.[0] || '#',
-            source: m.data.source || m.data.creator || 'Unknown',
-          });
-        });
-      });
-    }
+    results.saucenao?.forEach((res: any) =>
+      res.results?.forEach((m: any) =>
+        matches.push({
+          engine: 'SauceNAO',
+          similarity: parseFloat(m.header.similarity),
+          thumbnail: m.header.thumbnail,
+          link: m.data.ext_urls?.[0] || '#',
+          source: m.data.source || m.data.creator || 'Unknown',
+        })
+      )
+    );
 
-    if (results.fluffle) {
-      results.fluffle.forEach((res: any) => {
-        res.items?.forEach((m: any) => {
-          matches.push({
-            engine: 'Fluffle',
-            similarity: (m.score * 100).toFixed(2),
-            thumbnail: m.thumbnail?.url,
-            link: m.location,
-            source: m.platform || 'Unknown',
-          });
-        });
-      });
-    }
+    results.fluffle?.forEach((res: any) =>
+      res.items?.forEach((m: any) =>
+        matches.push({
+          engine: 'Fluffle',
+          similarity: (m.score * 100).toFixed(2),
+          thumbnail: m.thumbnail?.url,
+          link: m.location,
+          source: m.platform || 'Unknown',
+        })
+      )
+    );
 
     return matches.sort(
       (a, b) => parseFloat(b.similarity) - parseFloat(a.similarity)
