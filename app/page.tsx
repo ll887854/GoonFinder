@@ -35,9 +35,9 @@ export default function Home() {
 
     await ffmpeg.writeFile('input.mp4', await fetchFile(file));
     await ffmpeg.exec(['-i', 'input.mp4', '-vf', 'fps=1/10', 'frame-%03d.png']);
-    const data = await ffmpeg.readDir('.');
-    const frameFiles = data.filter(f => f.startsWith('frame-'));
-    const frames = await Promise.all(frameFiles.map(async f => await ffmpeg.readFile(f)));
+    const data = await ffmpeg.listDir('.');  // Correct method
+    const frameFiles = data.filter(f => f.name.startsWith('frame-'));
+    const frames = await Promise.all(frameFiles.map(async f => await ffmpeg.readFile(f.name)));
     return frames.map((data, i) => new File([data as Uint8Array], `frame-${i}.png`, { type: 'image/png' }));
   };
 
@@ -124,7 +124,7 @@ export default function Home() {
       });
     }
 
-    return matches.sort((a, b) => b.similarity - a.similarity);
+    return matches.sort((a, b) => parseFloat(b.similarity) - parseFloat(a.similarity));
   };
 
   const allMatches = getAllMatches();
