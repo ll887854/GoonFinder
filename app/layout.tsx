@@ -14,11 +14,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
-        {/* ExoClick Site Verification */}
-        <meta name="6a97888e-site-verification" content="be2f66aa3a2612f2fec6d8f68b8f1eea" />
+        {/* ExoClick Ad Provider Loader */}
+        <script async type="application/javascript" src="https://a.magsrv.com/ad-provider.js"></script>
 
-        {/* Google verification if you added it earlier */}
-        {/* <meta name="google-site-verification" content="your-google-code" /> */}
+        {/* Your verification tags if you have them */}
+        <meta name="6a97888e-site-verification" content="be2f66aa3a2612f2fec6d8f68b8f1eea" />
       </head>
       <body>{children}</body>
     </html>
