@@ -25,14 +25,6 @@ interface Match {
   video?: string;
 }
 
-// Random images (public URLs — safe for demo)
-const randomImages = [
-  'https://cdn.donmai.us/sample/12/34/sample_psylocke_venom.jpg',
-  'https://gelbooru.com/samples/11/22/sample_nilou.jpg',
-  'https://i.pximg.net/img-original/img/2024/01/01/00/00/00/114567890_p0.jpg',
-  'https://safebooru.org/samples/33/44/sample_random.jpg',
-];
-
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -84,26 +76,13 @@ export default function Home() {
   };
 
   const shareMatch = (match: Match) => {
-    const text = `Found with Goon Finder 🔥\n${match.source} (${match.similarity}% match)\n${match.link}\nTry it: your-site-url`;
+    const text = `Found with Goon Finder 🔥\n${match.source} (${match.similarity}% match)\n${match.link}\nTry the best free NSFW reverse search: your-site-url`;
     if (navigator.share) {
       navigator.share({ title: 'Goon Finder Match', text, url: match.link });
     } else {
       navigator.clipboard.writeText(text);
       alert('Copied to clipboard!');
     }
-  };
-
-  const loadRandomGoon = () => {
-    const randomUrl = randomImages[Math.floor(Math.random() * randomImages.length)];
-    fetch(randomUrl)
-      .then(res => res.blob())
-      .then(blob => {
-        const fakeFile = new File([blob], 'random_goon.jpg', { type: 'image/jpeg' });
-        setFile(fakeFile);
-        setPreview(randomUrl);
-        setResults(null);
-        setError(null);
-      });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,16 +201,7 @@ export default function Home() {
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6 relative">
       <h1 className="text-5xl font-bold mb-12">Goon Finder</h1>
 
-      {/* Buttons - Top */}
-      <div className="fixed top-6 left-1/2 transform -translate-x-1/2 flex gap-4 z-50">
-        <button
-          onClick={loadRandomGoon}
-          className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold text-xl shadow-2xl transition"
-        >
-          Random Goon 🔥
-        </button>
-      </div>
-
+      {/* Top Right Buttons */}
       <div className="fixed top-6 right-6 flex gap-4 z-50">
         <button
           onClick={() => setShowHistory(!showHistory)}
@@ -304,7 +274,6 @@ export default function Home() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                 {filteredMatches.map((match, idx) => (
                   <div key={idx} className="bg-gray-700 p-8 rounded-2xl shadow-2xl hover:shadow-cyan-500/50 transition relative">
-                    {/* Watermark */}
                     <div className="absolute top-2 right-2 bg-black bg-opacity-70 px-3 py-1 rounded text-xs font-bold">
                       Found with Goon Finder
                     </div>
