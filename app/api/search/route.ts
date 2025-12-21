@@ -15,7 +15,7 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <head>
         {/* Google Search Console Verification */}
-        <meta name="google-site-verification" content="YOUR_VERIFICATION_CODE_HERE" />
+        <meta name="google-site-verification" content="Ky-6wCy-Vr5BmW7Q77GZzzDOJGnVHS_3_nuhy8MqWP0" />
       </head>
       <body>{children}</body>
     </html>
