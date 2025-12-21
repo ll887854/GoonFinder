@@ -59,7 +59,6 @@ export default function Home() {
 
     const matches: Match[] = [];
 
-    // trace.moe
     if (results.traceMoe?.length > 0) {
       results.traceMoe.forEach((res: any) => {
         if (res.result) {
@@ -77,7 +76,6 @@ export default function Home() {
       });
     }
 
-    // SauceNAO
     if (results.saucenao?.length > 0) {
       results.saucenao.forEach((res: any) => {
         if (res.results) {
@@ -96,7 +94,6 @@ export default function Home() {
       });
     }
 
-    // Fluffle
     if (results.fluffle?.length > 0) {
       results.fluffle.forEach((res: any) => {
         if (res.items) {
@@ -120,23 +117,8 @@ export default function Home() {
   const filteredMatches = allMatches.filter(m => m.similarity >= threshold);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
-      <h1 className="text-5xl font-bold mb-8">Goon Finder</h1>
-
-      {/* New Content Section for Approval */}
-      <div className="max-w-4xl mx-auto text-center mb-12 px-6">
-        <h2 className="text-3xl font-bold mb-6">Free NSFW Reverse Image Search Tool</h2>
-        <p className="text-xl text-gray-300 mb-6">
-          Goon Finder is the ultimate free tool for finding the source of any NSFW image, video, or GIF. 
-          Powered by SauceNAO, trace.moe, Fluffle, and more — perfect for R34, hentai, anime scenes, furry art, and adult content.
-        </p>
-        <p className="text-lg text-gray-400 mb-8">
-          Upload any media — no registration, no limits, completely private. Find exact sources, artist names, Pixiv links, Danbooru posts, and anime episode timestamps in seconds.
-        </p>
-        <p className="text-lg text-gray-500 italic">
-          Built for the community in 2025 — fast, accurate, and 100% free.
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6 relative">
+      <h1 className="text-5xl font-bold mb-12">Goon Finder</h1>
 
       <div className="w-full max-w-5xl bg-gray-800 p-10 rounded-2xl shadow-2xl">
         <input
@@ -242,6 +224,14 @@ export default function Home() {
             )}
           </div>
         )}
+      </div>
+
+      {/* Small Description in Bottom-Left Corner */}
+      <div className="fixed bottom-4 left-4 max-w-xs bg-gray-800 bg-opacity-80 p-4 rounded-lg shadow-lg text-sm">
+        <p className="text-gray-300">
+          Goon Finder — Free NSFW reverse search for R34, hentai, anime & art. 
+          Powered by SauceNAO, trace.moe, Fluffle + more. Built 2025.
+        </p>
       </div>
 
       <footer className="mt-20 text-gray-500 text-center text-lg">
