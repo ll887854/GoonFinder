@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import axios from 'axios';
@@ -14,55 +14,90 @@ export default function Home() {
   const [threshold, setThreshold] = useState(80);
   const [showRaw, setShowRaw] = useState(false);
 
+  const ffmpegRef = useRef<FFmpeg | null>(null);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setPreview(URL.createObjectURL(selectedFile));
-      setResults(null);
-      setError(null);
-      setShowRaw(false);
-    }
+    if (!selectedFile) return;
+
+    setFile(selectedFile);
+    setPreview(URL.createObjectURL(selectedFile));
+    setResults(null);
+    setError(null);
+    setShowRaw(false);
+  };
+
+  const getFFmpeg = async () => {
+    if (ffmpegRef.current) return ffmpegRef.current;
+
+    const ffmpeg = new FFmpeg();
+    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+
+    await ffmpeg.load({
+      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+      wasmURL: await toBlobURL(
+        `${baseURL}/ffmpeg-core.wasm`,
+        'application/wasm'
+      ),
+    });
+
+    ffmpegRef.current = ffmpeg;
+    return ffmpeg;
   };
 
   const extractFrames = async (file: File) => {
-    const ffmpeg = new FFmpeg();
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
+    const ffmpeg = await getFFmpeg();
 
     await ffmpeg.writeFile('input.mp4', await fetchFile(file));
-    await ffmpeg.exec(['-i', 'input.mp4', '-vf', 'fps=1/10', 'frame-%03d.png']);
-    const data = await ffmpeg.listDir('.');  // Correct method
-    const frameFiles = data.filter(f => f.name.startsWith('frame-'));
-    const frames = await Promise.all(frameFiles.map(async f => await ffmpeg.readFile(f.name)));
-    return frames.map((data, i) => new File([data as Uint8Array], `frame-${i}.png`, { type: 'image/png' }));
+    await ffmpeg.exec([
+      '-i',
+      'input.mp4',
+      '-vf',
+      'fps=1/10',
+      'frame-%03d.png',
+    ]);
+
+    // ✅ ROOT DIRECTORY, NOT "."
+    const entries = await ffmpeg.listDir('/');
+
+    const frameNames = entries
+      .map((e) => e.name)
+      .filter((name) => name.startsWith('frame-'));
+
+    const frames = await Promise.all(
+      frameNames.map(async (name, i) => {
+        const data = await ffmpeg.readFile(name);
+        return new File([data as Uint8Array], `frame-${i}.png`, {
+          type: 'image/png',
+        });
+      })
+    );
+
+    return frames;
   };
 
   const handleSubmit = async () => {
     if (!file) return;
+
     setLoading(true);
     setError(null);
 
     try {
-      let imagesToSearch = [file];
+      let imagesToSearch: File[] = [file];
+
       if (file.type.startsWith('video/') || file.type === 'image/gif') {
         imagesToSearch = await extractFrames(file);
       }
 
       const formData = new FormData();
-      imagesToSearch.forEach(img => formData.append('images', img));
+      imagesToSearch.forEach((img) => formData.append('images', img));
 
-      const response = await axios.post('/api/search', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await axios.post('/api/search', formData);
 
       setResults(response.data);
     } catch (err) {
-      setError('Error processing search. Try again.');
       console.error(err);
+      setError('Error processing search. Try again.');
     } finally {
       setLoading(false);
     }
@@ -71,168 +106,138 @@ export default function Home() {
   const getAllMatches = () => {
     if (!results) return [];
 
-    const matches = [];
+    const matches: any[] = [];
 
-    if (results.traceMoe?.length > 0) {
+    if (results.traceMoe) {
       results.traceMoe.forEach((res: any) => {
-        if (res.result) {
-          res.result.forEach((match: any) => {
-            matches.push({
-              engine: 'trace.moe (Anime/Video)',
-              similarity: (match.similarity * 100).toFixed(2),
-              thumbnail: match.image,
-              link: `https://anilist.co/anime/${match.anilist}`,
-              source: match.filename || 'Anime scene',
-              video: match.video,
-            });
+        res.result?.forEach((m: any) => {
+          matches.push({
+            engine: 'trace.moe',
+            similarity: (m.similarity * 100).toFixed(2),
+            thumbnail: m.image,
+            link: `https://anilist.co/anime/${m.anilist}`,
+            source: m.filename || 'Anime scene',
+            video: m.video,
           });
-        }
+        });
       });
     }
 
-    if (results.saucenao?.length > 0) {
+    if (results.saucenao) {
       results.saucenao.forEach((res: any) => {
-        if (res.results) {
-          res.results.forEach((match: any) => {
-            const h = match.header;
-            const d = match.data;
-            matches.push({
-              engine: 'SauceNAO (R34/Art)',
-              similarity: parseFloat(h.similarity),
-              thumbnail: h.thumbnail,
-              link: d.ext_urls?.[0] || d.source || '#',
-              source: d.source || d.creator || 'Unknown',
-            });
+        res.results?.forEach((m: any) => {
+          matches.push({
+            engine: 'SauceNAO',
+            similarity: parseFloat(m.header.similarity),
+            thumbnail: m.header.thumbnail,
+            link: m.data.ext_urls?.[0] || '#',
+            source: m.data.source || m.data.creator || 'Unknown',
           });
-        }
+        });
       });
     }
 
-    if (results.fluffle?.length > 0) {
+    if (results.fluffle) {
       results.fluffle.forEach((res: any) => {
-        if (res.items) {
-          res.items.forEach((match: any) => {
-            matches.push({
-              engine: 'Fluffle (Furry/NSFW Art)',
-              similarity: (match.score * 100).toFixed(2),
-              thumbnail: match.thumbnail?.url,
-              link: match.location,
-              source: match.platform || 'Unknown',
-            });
+        res.items?.forEach((m: any) => {
+          matches.push({
+            engine: 'Fluffle',
+            similarity: (m.score * 100).toFixed(2),
+            thumbnail: m.thumbnail?.url,
+            link: m.location,
+            source: m.platform || 'Unknown',
           });
-        }
+        });
       });
     }
 
-    return matches.sort((a, b) => parseFloat(b.similarity) - parseFloat(a.similarity));
+    return matches.sort(
+      (a, b) => parseFloat(b.similarity) - parseFloat(a.similarity)
+    );
   };
 
   const allMatches = getAllMatches();
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
-      <h1 className="text-4xl font-bold mb-10">Goon Finder</h1>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <h1 className="text-4xl font-bold text-center mb-10">Goon Finder</h1>
 
-      <div className="w-full max-w-5xl bg-gray-800 p-8 rounded-xl shadow-2xl">
+      <div className="max-w-5xl mx-auto bg-gray-800 p-8 rounded-xl">
         <input
           type="file"
           accept="image/*,video/*,.gif"
           onChange={handleFileChange}
-          className="w-full mb-6 p-3 bg-gray-700 rounded border border-gray-600"
+          className="w-full mb-6 p-3 bg-gray-700 rounded"
         />
 
         {preview && (
-          <div className="mb-8">
-            <img src={preview} alt="Preview" className="w-full max-w-2xl mx-auto rounded-lg shadow-lg" />
-            <p className="text-center text-gray-400 mt-3">Uploaded Media</p>
-          </div>
+          <img
+            src={preview}
+            alt="Preview"
+            className="mx-auto max-w-2xl rounded mb-6"
+          />
         )}
 
         <button
           onClick={handleSubmit}
           disabled={!file || loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-bold py-4 rounded-lg text-lg"
+          className="w-full bg-blue-600 py-4 rounded font-bold"
         >
-          {loading ? 'Searching all engines...' : 'Start Search'}
+          {loading ? 'Searching…' : 'Start Search'}
         </button>
 
-        {error && <p className="mt-6 text-red-400 text-center">{error}</p>}
+        {error && <p className="mt-4 text-red-400 text-center">{error}</p>}
 
         {results && (
-          <div className="mt-12">
-            <h2 className="text-3xl font-bold mb-6 text-center">Matches ≥ {threshold}%</h2>
-
-            <div className="mb-8 text-center">
-              <label className="block text-gray-300 mb-2">Similarity Threshold</label>
+          <>
+            <div className="mt-10">
               <input
                 type="range"
                 min="0"
                 max="100"
                 value={threshold}
-                onChange={(e) => setThreshold(parseInt(e.target.value))}
-                className="w-full h-3 bg-gray-700 rounded-lg cursor-pointer"
+                onChange={(e) => setThreshold(+e.target.value)}
+                className="w-full"
               />
-              <p className="text-gray-400 mt-2">{threshold}%</p>
+              <p className="text-center mt-2">{threshold}% threshold</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
               {allMatches
-                .filter(m => parseFloat(m.similarity) >= threshold)
-                .map((match, idx) => (
-                  <div key={idx} className="bg-gray-700 p-6 rounded-xl shadow-lg">
-                    <p className="text-sm text-cyan-300 mb-2">{match.engine}</p>
-                    {match.thumbnail && (
-                      <img src={match.thumbnail} alt="Match" className="w-full h-auto rounded-lg mb-4" />
+                .filter((m) => parseFloat(m.similarity) >= threshold)
+                .map((m, i) => (
+                  <div key={i} className="bg-gray-700 p-4 rounded">
+                    <p className="text-cyan-300">{m.engine}</p>
+                    {m.thumbnail && (
+                      <img src={m.thumbnail} className="rounded my-3" />
                     )}
-                    <p className="text-lg font-bold mb-2">Similarity: {match.similarity}%</p>
-                    <p className="text-sm text-gray-300 mb-3">Source: {match.source}</p>
+                    <p>Similarity: {m.similarity}%</p>
                     <a
-                      href={match.link}
+                      href={m.link}
                       target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-block bg-blue-600 hover:bg-blue-700 px-5 py-2 rounded-lg font-medium"
+                      className="text-blue-400 underline"
                     >
-                      View Original →
+                      View Source
                     </a>
-                    {match.video && (
-                      <a
-                        href={match.video}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block mt-3 text-sm text-green-400 hover:underline"
-                      >
-                        Watch Scene Clip
-                      </a>
-                    )}
                   </div>
                 ))}
             </div>
 
-            {/* ExoClick Banner Ad */}
-            <div className="mt-12 flex justify-center">
-              <ins className="eas6a97888e2" data-zoneid="5806290"></ins>
-              <script dangerouslySetInnerHTML={{ __html: `(AdProvider = window.AdProvider || []).push({"serve": {}});` }} />
-            </div>
-
             <button
               onClick={() => setShowRaw(!showRaw)}
-              className="mt-12 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-lg transition"
+              className="mt-10 bg-purple-600 px-6 py-3 rounded"
             >
-              {showRaw ? 'Hide' : 'View'} Raw JSON Data
+              {showRaw ? 'Hide' : 'Show'} Raw JSON
             </button>
 
             {showRaw && (
-              <pre className="mt-6 bg-black p-6 rounded-lg overflow-auto text-xs text-gray-300 border border-gray-700">
+              <pre className="mt-4 bg-black p-4 text-xs overflow-auto">
                 {JSON.stringify(results, null, 2)}
               </pre>
             )}
-          </div>
+          </>
         )}
       </div>
-
-      <footer className="mt-16 text-gray-500 text-sm">
-        Goon Finder — Free NSFW Reverse Search • 2025
-      </footer>
     </div>
   );
 }
