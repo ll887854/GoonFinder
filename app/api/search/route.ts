@@ -4,6 +4,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Goon Finder',
   description: 'Free NSFW Reverse Image Search Tool',
+  other: {
+    'google-site-verification':
+      'Ky-6wCy-Vr5BmW7Q77GZzzDOJGnVHS_3_nuhy8MqWP0',
+  },
 };
 
 export default function RootLayout({
@@ -13,10 +17,6 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <head>
-        {/* Google Search Console Verification */}
-        <meta name="google-site-verification" content="Ky-6wCy-Vr5BmW7Q77GZzzDOJGnVHS_3_nuhy8MqWP0" />
-      </head>
       <body>{children}</body>
     </html>
   );
