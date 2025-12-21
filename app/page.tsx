@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import axios from 'axios';
 
 export default function Home() {
@@ -15,58 +13,14 @@ export default function Home() {
   const [showRaw, setShowRaw] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
-    setResults(null);
-    setError(null);
-    setShowRaw(false);
-  };
-
-  const extractFrames = async (file: File): Promise<File[]> => {
-    const ffmpeg = new FFmpeg();
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-
-    await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-    });
-
-    await ffmpeg.writeFile('input.mp4', await fetchFile(file));
-    await ffmpeg.exec(['-i', 'input.mp4', '-vf', 'fps=1/10', 'frame-%03d.png']);
-
-    const frames: File[] = [];
-
-    for (let i = 1; i <= 30; i++) {
-      const name = `frame-${String(i).padStart(3, '0')}.png`;
-
-      try {
-        const data = await ffmpeg.readFile(name);
-
-        // 🔒 Normalize EVERYTHING to Uint8Array
-        let bytes: Uint8Array;
-
-        if (typeof data === 'string') {
-          bytes = new TextEncoder().encode(data);
-        } else {
-          bytes = data;
-        }
-
-        // 🔒 Clone to guarantee non-shared ArrayBuffer
-        const safeBytes = new Uint8Array(bytes);
-
-        frames.push(
-          new File([safeBytes], `frame-${i}.png`, {
-            type: 'image/png',
-          })
-        );
-      } catch {
-        break; // no more frames
-      }
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setPreview(URL.createObjectURL(selectedFile));
+      setResults(null);
+      setError(null);
+      setShowRaw(false);
     }
-
-    return frames;
   };
 
   const handleSubmit = async () => {
@@ -75,20 +29,17 @@ export default function Home() {
     setError(null);
 
     try {
-      let images: File[] = [file];
-
-      if (file.type.startsWith('video/') || file.type === 'image/gif') {
-        images = await extractFrames(file);
-      }
-
       const formData = new FormData();
-      images.forEach(img => formData.append('images', img));
+      formData.append('images', file);
 
-      const res = await axios.post('/api/search', formData);
-      setResults(res.data);
-    } catch (e) {
-      console.error(e);
-      setError('Error processing search.');
+      const response = await axios.post('/api/search', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      setResults(response.data);
+    } catch (err) {
+      setError('Error processing search. Try again.');
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -96,100 +47,182 @@ export default function Home() {
 
   const getAllMatches = () => {
     if (!results) return [];
-    const matches: any[] = [];
 
-    results.traceMoe?.forEach((r: any) =>
-      r.result?.forEach((m: any) =>
-        matches.push({
-          engine: 'trace.moe',
-          similarity: (m.similarity * 100).toFixed(2),
-          thumbnail: m.image,
-          link: `https://anilist.co/anime/${m.anilist}`,
-          source: m.filename,
-          video: m.video,
-        })
-      )
-    );
+    const matches = [];
 
-    results.saucenao?.forEach((r: any) =>
-      r.results?.forEach((m: any) =>
-        matches.push({
-          engine: 'SauceNAO',
-          similarity: parseFloat(m.header.similarity),
-          thumbnail: m.header.thumbnail,
-          link: m.data.ext_urls?.[0] ?? '#',
-          source: m.data.source ?? 'Unknown',
-        })
-      )
-    );
+    // trace.moe
+    if (results.traceMoe?.length > 0) {
+      results.traceMoe.forEach((res: any) => {
+        if (res.result) {
+          res.result.forEach((match: any) => {
+            matches.push({
+              engine: 'trace.moe (Anime/Video)',
+              similarity: (match.similarity * 100).toFixed(2),
+              thumbnail: match.image,
+              link: `https://anilist.co/anime/${match.anilist}`,
+              source: match.filename || 'Anime scene',
+              video: match.video,
+            });
+          });
+        }
+      });
+    }
 
-    results.fluffle?.forEach((r: any) =>
-      r.items?.forEach((m: any) =>
-        matches.push({
-          engine: 'Fluffle',
-          similarity: (m.score * 100).toFixed(2),
-          thumbnail: m.thumbnail?.url,
-          link: m.location,
-          source: m.platform,
-        })
-      )
-    );
+    // SauceNAO
+    if (results.saucenao?.length > 0) {
+      results.saucenao.forEach((res: any) => {
+        if (res.results) {
+          res.results.forEach((match: any) => {
+            const h = match.header;
+            const d = match.data;
+            matches.push({
+              engine: 'SauceNAO (R34/Art)',
+              similarity: parseFloat(h.similarity),
+              thumbnail: h.thumbnail,
+              link: d.ext_urls?.[0] || d.source || '#',
+              source: d.source || d.creator?.join(', ') || 'Unknown',
+            });
+          });
+        }
+      });
+    }
 
-    return matches.sort(
-      (a, b) => parseFloat(b.similarity) - parseFloat(a.similarity)
-    );
+    // Fluffle
+    if (results.fluffle?.length > 0) {
+      results.fluffle.forEach((res: any) => {
+        if (res.items) {
+          res.items.forEach((match: any) => {
+            matches.push({
+              engine: 'Fluffle (Furry/NSFW Art)',
+              similarity: (match.score * 100).toFixed(2),
+              thumbnail: match.thumbnail?.url,
+              link: match.location,
+              source: match.platform || 'Unknown',
+            });
+          });
+        }
+      });
+    }
+
+    return matches.sort((a, b) => parseFloat(b.similarity) - parseFloat(a.similarity));
   };
 
   const allMatches = getAllMatches();
+  const filteredMatches = allMatches.filter(m => parseFloat(m.similarity) >= threshold);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <h1 className="text-4xl font-bold text-center mb-8">Goon Finder</h1>
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
+      <h1 className="text-5xl font-bold mb-12">Goon Finder</h1>
 
-      <div className="max-w-5xl mx-auto bg-gray-800 p-8 rounded-xl">
+      <div className="w-full max-w-5xl bg-gray-800 p-10 rounded-2xl shadow-2xl">
         <input
           type="file"
           accept="image/*,video/*,.gif"
           onChange={handleFileChange}
-          className="w-full mb-6"
+          className="w-full mb-8 p-4 bg-gray-700 rounded-lg border border-gray-600 text-lg"
         />
 
         {preview && (
-          <img src={preview} className="mx-auto max-w-2xl rounded mb-6" />
+          <div className="mb-10 text-center">
+            <img src={preview} alt="Preview" className="mx-auto max-w-2xl rounded-xl shadow-2xl" />
+            <p className="mt-4 text-gray-400 text-lg">Uploaded Media</p>
+          </div>
         )}
 
         <button
           onClick={handleSubmit}
           disabled={!file || loading}
-          className="w-full bg-blue-600 py-3 rounded"
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed py-5 rounded-xl text-2xl font-bold transition"
         >
-          {loading ? 'Searching…' : 'Start Search'}
+          {loading ? 'Searching all engines...' : 'Start Search'}
         </button>
 
-        {error && <p className="mt-4 text-red-400">{error}</p>}
+        {error && <p className="mt-8 text-red-400 text-center text-xl">{error}</p>}
 
         {results && (
-          <div className="mt-8 grid md:grid-cols-3 gap-6">
-            {allMatches
-              .filter(m => parseFloat(m.similarity) >= threshold)
-              .map((m, i) => (
-                <div key={i} className="bg-gray-700 p-4 rounded">
-                  <p className="text-cyan-300">{m.engine}</p>
-                  {m.thumbnail && <img src={m.thumbnail} className="mt-2" />}
-                  <p className="font-bold mt-2">{m.similarity}%</p>
-                  <a
-                    href={m.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400"
-                  >
-                    View source
-                  </a>
-                </div>
-              ))}
+          <div className="mt-16">
+            <div className="mb-12 text-center">
+              <label className="block text-3xl mb-4 text-gray-200">
+                Similarity Threshold: {threshold}%
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={threshold}
+                onChange={(e) => setThreshold(Number(e.target.value))}
+                className="w-full h-4 bg-gray-700 rounded-lg cursor-pointer accent-blue-500"
+              />
+            </div>
+
+            {filteredMatches.length === 0 ? (
+              <p className="text-center text-gray-400 text-2xl mt-10">
+                No matches above {threshold}% — try lowering the slider!
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                {filteredMatches.map((match, idx) => (
+                  <div key={idx} className="bg-gray-700 p-8 rounded-2xl shadow-2xl hover:shadow-cyan-500/50 transition">
+                    <p className="text-cyan-400 font-bold text-xl mb-4">{match.engine}</p>
+                    {match.thumbnail && (
+                      <img src={match.thumbnail} alt="Match" className="w-full h-auto rounded-xl mb-6 shadow-lg" />
+                    )}
+                    <p className="text-3xl font-bold text-green-400 mb-3">{match.similarity}% Match</p>
+                    <p className="text-gray-300 mb-6">Source: {match.source}</p>
+                    <a
+                      href={match.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block bg-blue-600 hover:bg-blue-700 px-8 py-4 rounded-xl font-bold text-xl transition"
+                    >
+                      View Original →
+                    </a>
+                    {match.video && (
+                      <a
+                        href={match.video}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block mt-4 text-green-400 hover:underline text-lg"
+                      >
+                        Watch Scene Clip
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ExoClick Banner Ad */}
+            <div className="mt-16 flex justify-center">
+              <ins className="eas6a97888e2" data-zoneid="5806290"></ins>
+              <script
+                dangerouslySetInnerHTML={{
+                  __html: `(AdProvider = window.AdProvider || []).push({"serve": {}});`,
+                }}
+              />
+            </div>
+
+            <div className="mt-16 text-center">
+              <button
+                onClick={() => setShowRaw(!showRaw)}
+                className="bg-purple-600 hover:bg-purple-700 px-10 py-5 rounded-xl font-bold text-2xl transition"
+              >
+                {showRaw ? 'Hide' : 'Show'} Raw JSON
+              </button>
+            </div>
+
+            {showRaw && (
+              <pre className="mt-8 bg-black p-8 rounded-xl overflow-auto text-sm border border-gray-700">
+                {JSON.stringify(results, null, 2)}
+              </pre>
+            )}
           </div>
         )}
       </div>
+
+      <footer className="mt-20 text-gray-500 text-center text-lg">
+        Goon Finder — Free NSFW Reverse Search • 2025
+      </footer>
     </div>
   );
 }
