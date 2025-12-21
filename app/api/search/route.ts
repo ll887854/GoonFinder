@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
         if (asciiRes.ok) {
           const html = await asciiRes.text();
           const matches =
-            html.match(/<div class="detail-box">(.*?)<\/div>/gs) || [];
+            html.match(/<div class="detail-box">([\s\S]*?)<\/div>/g) || [];
 
           results.ascii2d.push(
             matches.map((m) => ({
@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
         if (iqdbRes.ok) {
           const html = await iqdbRes.text();
           const matches =
-            html.match(/<td class="image">(.*?)<\/td>/gs) || [];
+            html.match(/<td class="image">([\s\S]*?)<\/td>/g) || [];
 
           results.iqdb.push(
             matches.map((m) => ({
