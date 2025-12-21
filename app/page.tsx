@@ -1,7 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
+
+interface SearchHistory {
+  id: string;
+  date: string;
+  preview: string;
+  results: any;
+}
 
 interface Match {
   engine: string;
@@ -20,6 +27,29 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [threshold, setThreshold] = useState(80);
   const [showRaw, setShowRaw] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<SearchHistory[]>([]);
+
+  // Load history from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('goonFinderHistory');
+    if (saved) {
+      setHistory(JSON.parse(saved));
+    }
+  }, []);
+
+  // Save to history after successful search
+  const saveToHistory = (currentPreview: string, currentResults: any) => {
+    const newEntry: SearchHistory = {
+      id: Date.now().toString(),
+      date: new Date().toLocaleString(),
+      preview: currentPreview,
+      results: currentResults,
+    };
+    const updated = [newEntry, ...history].slice(0, 50); // Keep last 50
+    setHistory(updated);
+    localStorage.setItem('goonFinderHistory', JSON.stringify(updated));
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -33,7 +63,7 @@ export default function Home() {
   };
 
   const handleSubmit = async () => {
-    if (!file) return;
+    if (!file || !preview) return;
     setLoading(true);
     setError(null);
 
@@ -46,12 +76,24 @@ export default function Home() {
       });
 
       setResults(response.data);
+      saveToHistory(preview, response.data); // Auto-save
     } catch (err) {
       setError('Error processing search. Try again.');
       console.error(err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadFromHistory = (entry: SearchHistory) => {
+    setPreview(entry.preview);
+    setResults(entry.results);
+    setShowHistory(false);
+  };
+
+  const clearHistory = () => {
+    setHistory([]);
+    localStorage.removeItem('goonFinderHistory');
   };
 
   const getAllMatches = (): Match[] => {
@@ -119,6 +161,14 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6 relative">
       <h1 className="text-5xl font-bold mb-12">Goon Finder</h1>
+
+      {/* History Button - Top Right */}
+      <button
+        onClick={() => setShowHistory(!showHistory)}
+        className="fixed top-6 right-6 bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-bold text-lg shadow-lg z-50 transition"
+      >
+        History ({history.length})
+      </button>
 
       <div className="w-full max-w-5xl bg-gray-800 p-10 rounded-2xl shadow-2xl">
         <input
@@ -226,13 +276,54 @@ export default function Home() {
         )}
       </div>
 
-      {/* Small Description in Bottom-Left Corner */}
-      <div className="fixed bottom-4 left-4 max-w-xs bg-gray-800 bg-opacity-80 p-4 rounded-lg shadow-lg text-sm">
-        <p className="text-gray-300">
-          Goon Finder — Free NSFW reverse search for R34, hentai, anime & art. 
-          Powered by SauceNAO, trace.moe, Fluffle + more. Built 2025.
-        </p>
-      </div>
+      {/* History Panel - Slides in from right */}
+      {showHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={() => setShowHistory(false)}>
+          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-gray-800 shadow-2xl p-8 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold">Search History</h2>
+              <button
+                onClick={() => setShowHistory(false)}
+                className="text-4xl hover:text-red-400"
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="text-gray-300 mb-6">
+              Your searches are saved automatically in your browser (private, not synced).
+            </p>
+
+            {history.length === 0 ? (
+              <p className="text-center text-gray-400 text-xl mt-20">No history yet — start searching!</p>
+            ) : (
+              <>
+                <button
+                  onClick={clearHistory}
+                  className="mb-6 bg-red-600 hover:bg-red-700 px-6 py-2 rounded-lg font-bold"
+                >
+                  Clear History
+                </button>
+
+                <div className="space-y-6">
+                  {history.map((entry) => (
+                    <div key={entry.id} className="bg-gray-700 p-4 rounded-lg">
+                      <p className="text-sm text-gray-400 mb-2">{entry.date}</p>
+                      <img src={entry.preview} alt="Past" className="w-full h-auto rounded mb-3" />
+                      <button
+                        onClick={() => loadFromHistory(entry)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded font-bold"
+                      >
+                        Re-run Search
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <footer className="mt-20 text-gray-500 text-center text-lg">
         Goon Finder — Free NSFW Reverse Search • 2025
