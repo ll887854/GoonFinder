@@ -1,4 +1,4 @@
-'use client'
+'use client';
 
 import { useState } from 'react';
 import axios from 'axios';
@@ -121,7 +121,22 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
-      <h1 className="text-5xl font-bold mb-12">Goon Finder</h1>
+      <h1 className="text-5xl font-bold mb-8">Goon Finder</h1>
+
+      {/* New Content Section for Approval */}
+      <div className="max-w-4xl mx-auto text-center mb-12 px-6">
+        <h2 className="text-3xl font-bold mb-6">Free NSFW Reverse Image Search Tool</h2>
+        <p className="text-xl text-gray-300 mb-6">
+          Goon Finder is the ultimate free tool for finding the source of any NSFW image, video, or GIF. 
+          Powered by SauceNAO, trace.moe, Fluffle, and more — perfect for R34, hentai, anime scenes, furry art, and adult content.
+        </p>
+        <p className="text-lg text-gray-400 mb-8">
+          Upload any media — no registration, no limits, completely private. Find exact sources, artist names, Pixiv links, Danbooru posts, and anime episode timestamps in seconds.
+        </p>
+        <p className="text-lg text-gray-500 italic">
+          Built for the community in 2025 — fast, accurate, and 100% free.
+        </p>
+      </div>
 
       <div className="w-full max-w-5xl bg-gray-800 p-10 rounded-2xl shadow-2xl">
         <input
