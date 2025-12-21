@@ -36,33 +36,33 @@ export default function Home() {
     await ffmpeg.writeFile('input.mp4', await fetchFile(file));
     await ffmpeg.exec(['-i', 'input.mp4', '-vf', 'fps=1/10', 'frame-%03d.png']);
 
-    // We KNOW the output naming scheme → no directory listing needed
-    const frameNames = Array.from({ length: 20 }, (_, i) =>
-      `frame-${String(i + 1).padStart(3, '0')}.png`
-    );
-
     const frames: File[] = [];
 
-    for (let i = 0; i < frameNames.length; i++) {
+    for (let i = 1; i <= 30; i++) {
+      const name = `frame-${String(i).padStart(3, '0')}.png`;
+
       try {
-        const data = await ffmpeg.readFile(frameNames[i]);
+        const data = await ffmpeg.readFile(name);
 
-        // 🔒 HARD TYPE SAFETY (no SharedArrayBuffer leaks)
-        const bytes =
-          data instanceof Uint8Array
-            ? data
-            : new Uint8Array(data as ArrayBuffer);
+        // 🔒 Normalize EVERYTHING to Uint8Array
+        let bytes: Uint8Array;
 
-        const safeBuffer = new Uint8Array(bytes).buffer;
+        if (typeof data === 'string') {
+          bytes = new TextEncoder().encode(data);
+        } else {
+          bytes = data;
+        }
+
+        // 🔒 Clone to guarantee non-shared ArrayBuffer
+        const safeBytes = new Uint8Array(bytes);
 
         frames.push(
-          new File([safeBuffer], `frame-${i}.png`, {
+          new File([safeBytes], `frame-${i}.png`, {
             type: 'image/png',
           })
         );
       } catch {
-        // Stop when frames run out
-        break;
+        break; // no more frames
       }
     }
 
@@ -71,7 +71,6 @@ export default function Home() {
 
   const handleSubmit = async () => {
     if (!file) return;
-
     setLoading(true);
     setError(null);
 
@@ -85,10 +84,7 @@ export default function Home() {
       const formData = new FormData();
       images.forEach(img => formData.append('images', img));
 
-      const res = await axios.post('/api/search', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-
+      const res = await axios.post('/api/search', formData);
       setResults(res.data);
     } catch (e) {
       console.error(e);
@@ -148,7 +144,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
-      <h1 className="text-4xl font-bold mb-8 text-center">Goon Finder</h1>
+      <h1 className="text-4xl font-bold text-center mb-8">Goon Finder</h1>
 
       <div className="max-w-5xl mx-auto bg-gray-800 p-8 rounded-xl">
         <input
@@ -159,16 +155,13 @@ export default function Home() {
         />
 
         {preview && (
-          <img
-            src={preview}
-            className="mx-auto max-w-2xl rounded-lg mb-6"
-          />
+          <img src={preview} className="mx-auto max-w-2xl rounded mb-6" />
         )}
 
         <button
           onClick={handleSubmit}
           disabled={!file || loading}
-          className="w-full bg-blue-600 py-3 rounded-lg"
+          className="w-full bg-blue-600 py-3 rounded"
         >
           {loading ? 'Searching…' : 'Start Search'}
         </button>
@@ -176,51 +169,25 @@ export default function Home() {
         {error && <p className="mt-4 text-red-400">{error}</p>}
 
         {results && (
-          <>
-            <div className="mt-8">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={threshold}
-                onChange={e => setThreshold(+e.target.value)}
-                className="w-full"
-              />
-              <p className="text-center">{threshold}%</p>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-6 mt-8">
-              {allMatches
-                .filter(m => parseFloat(m.similarity) >= threshold)
-                .map((m, i) => (
-                  <div key={i} className="bg-gray-700 p-4 rounded">
-                    <p className="text-cyan-300 text-sm">{m.engine}</p>
-                    {m.thumbnail && <img src={m.thumbnail} className="mt-2" />}
-                    <p className="mt-2 font-bold">{m.similarity}%</p>
-                    <a
-                      href={m.link}
-                      target="_blank"
-                      className="text-blue-400 underline"
-                    >
-                      View source
-                    </a>
-                  </div>
-                ))}
-            </div>
-
-            <button
-              onClick={() => setShowRaw(!showRaw)}
-              className="mt-10 bg-purple-600 px-6 py-3 rounded"
-            >
-              {showRaw ? 'Hide' : 'Show'} Raw JSON
-            </button>
-
-            {showRaw && (
-              <pre className="mt-4 text-xs overflow-auto">
-                {JSON.stringify(results, null, 2)}
-              </pre>
-            )}
-          </>
+          <div className="mt-8 grid md:grid-cols-3 gap-6">
+            {allMatches
+              .filter(m => parseFloat(m.similarity) >= threshold)
+              .map((m, i) => (
+                <div key={i} className="bg-gray-700 p-4 rounded">
+                  <p className="text-cyan-300">{m.engine}</p>
+                  {m.thumbnail && <img src={m.thumbnail} className="mt-2" />}
+                  <p className="font-bold mt-2">{m.similarity}%</p>
+                  <a
+                    href={m.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400"
+                  >
+                    View source
+                  </a>
+                </div>
+              ))}
+          </div>
         )}
       </div>
     </div>
