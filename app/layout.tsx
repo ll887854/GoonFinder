@@ -14,7 +14,6 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
-        {/* ExoClick Ad Provider */}
         <script async type="application/javascript" src="https://a.magsrv.com/ad-provider.js"></script>
       </head>
       <body>{children}</body>
