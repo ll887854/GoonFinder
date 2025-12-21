@@ -3,6 +3,15 @@
 import { useState } from 'react';
 import axios from 'axios';
 
+interface Match {
+  engine: string;
+  similarity: number;
+  thumbnail?: string;
+  link: string;
+  source: string;
+  video?: string;
+}
+
 export default function Home() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -45,10 +54,10 @@ export default function Home() {
     }
   };
 
-  const getAllMatches = () => {
+  const getAllMatches = (): Match[] => {
     if (!results) return [];
 
-    const matches = [];
+    const matches: Match[] = [];
 
     // trace.moe
     if (results.traceMoe?.length > 0) {
@@ -57,7 +66,7 @@ export default function Home() {
           res.result.forEach((match: any) => {
             matches.push({
               engine: 'trace.moe (Anime/Video)',
-              similarity: (match.similarity * 100).toFixed(2),
+              similarity: parseFloat((match.similarity * 100).toFixed(2)),
               thumbnail: match.image,
               link: `https://anilist.co/anime/${match.anilist}`,
               source: match.filename || 'Anime scene',
@@ -94,7 +103,7 @@ export default function Home() {
           res.items.forEach((match: any) => {
             matches.push({
               engine: 'Fluffle (Furry/NSFW Art)',
-              similarity: (match.score * 100).toFixed(2),
+              similarity: parseFloat((match.score * 100).toFixed(2)),
               thumbnail: match.thumbnail?.url,
               link: match.location,
               source: match.platform || 'Unknown',
@@ -104,11 +113,11 @@ export default function Home() {
       });
     }
 
-    return matches.sort((a, b) => parseFloat(b.similarity) - parseFloat(a.similarity));
+    return matches.sort((a, b) => b.similarity - a.similarity);
   };
 
   const allMatches = getAllMatches();
-  const filteredMatches = allMatches.filter(m => parseFloat(m.similarity) >= threshold);
+  const filteredMatches = allMatches.filter(m => m.similarity >= threshold);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-6">
