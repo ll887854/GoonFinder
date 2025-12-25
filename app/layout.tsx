@@ -14,13 +14,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
-        {/* ExoClick provider */}
-        <script
-          async
-          src="https://a.magsrv.com/ad-provider.js"
-        ></script>
-
-        {/* ExoClick popunder */}
+        <script async type="application/javascript" src="https://a.magsrv.com/ad-provider.js"></script>
         <script
           dangerouslySetInnerHTML={{
             __html: `
