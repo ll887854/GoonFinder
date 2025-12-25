@@ -336,4 +336,119 @@ export default function Home() {
                 className="bg-purple-600 hover:bg-purple-700 px-10 py-5 rounded-xl font-bold text-2xl transition"
               >
                 {showRaw ? 'Hide' : 'Show'} Raw JSON
-              </button
+              </button>
+            </div>
+
+            {showRaw && (
+              <pre className="mt-8 bg-black p-8 rounded-xl overflow-auto text-sm border border-gray-700">
+                {JSON.stringify(results, null, 2)}
+              </pre>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* History Panel */}
+      {showHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-end" onClick={() => setShowHistory(false)}>
+          <div className="w-full max-w-md bg-gray-800 h-full shadow-2xl p-8 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold">Search History</h2>
+              <button onClick={() => setShowHistory(false)} className="text-4xl hover:text-red-400">×</button>
+            </div>
+            <p className="text-gray-300 mb-6">
+              Your recent searches (auto-saved in browser).
+            </p>
+            {history.length === 0 ? (
+              <p className="text-center text-gray-400 mt-20 text-xl">No history yet — start searching!</p>
+            ) : (
+              <>
+                <button onClick={clearHistory} className="mb-6 bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold w-full">
+                  Clear History
+                </button>
+                <div className="space-y-6">
+                  {history.map(entry => (
+                    <div key={entry.id} className="bg-gray-700 p-4 rounded-lg">
+                      <p className="text-sm text-gray-400 mb-2">{entry.date}</p>
+                      <img src={entry.preview} alt="Past" className="w-full rounded mb-3" />
+                      <button
+                        onClick={() => loadFromHistory(entry)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 py-3 rounded font-bold"
+                      >
+                        Re-run Search
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Favorites Panel */}
+      {showFavorites && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-end" onClick={() => setShowFavorites(false)}>
+          <div className="w-full max-w-md bg-gray-800 h-full shadow-2xl p-8 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-3xl font-bold">Favorites</h2>
+              <button onClick={() => setShowFavorites(false)} className="text-4xl hover:text-red-400">×</button>
+            </div>
+            <p className="text-gray-300 mb-6">
+              Your favorite matches (saved locally).
+            </p>
+            {favorites.length === 0 ? (
+              <p className="text-center text-gray-400 mt-20 text-xl">No favorites yet — click ❤️ on a match!</p>
+            ) : (
+              <>
+                <button onClick={clearFavorites} className="mb-6 bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold w-full">
+                  Clear Favorites
+                </button>
+                <div className="space-y-6">
+                  {favorites.map(fav => (
+                    <div key={fav.id} className="bg-gray-700 p-6 rounded-xl">
+                      <p className="text-cyan-400 font-bold mb-2">{fav.match.engine}</p>
+                      {fav.match.thumbnail && (
+                        <img src={fav.match.thumbnail} alt="Fav" className="w-full rounded mb-4" />
+                      )}
+                      <p className="font-bold text-green-400 mb-2">{fav.match.similarity}%</p>
+                      <p className="text-gray-300 mb-4">Source: {fav.match.source}</p>
+                      <div className="flex gap-3">
+                        <a
+                          href={fav.match.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 py-3 rounded text-center font-bold"
+                        >
+                          View
+                        </a>
+                        <button
+                          onClick={() => toggleFavorite(fav.match)}
+                          className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded font-bold"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Small Description */}
+      <div className="fixed bottom-4 left-4 max-w-sm bg-gray-800 bg-opacity-90 p-4 rounded-lg shadow-lg text-sm">
+        <p className="text-gray-300 leading-relaxed">
+          Goon Finder — Free NSFW reverse image search for R34, hentai, anime scenes, furry art & more. 
+          Powered by SauceNAO, trace.moe, Fluffle. Built 2025.
+        </p>
+      </div>
+
+      <footer className="mt-20 text-gray-500 text-center text-lg">
+        Goon Finder — Free NSFW Reverse Search • 2025
+      </footer>
+    </div>
+  );
+}
